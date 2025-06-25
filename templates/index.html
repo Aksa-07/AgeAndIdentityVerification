@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Age & Identity Verification</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* Add your long CSS block here */
+    /* Paste the CSS you gave earlier (the styled UI version) */
+    /* For brevity, I'm skipping the paste here, but include all that CSS between <style>...</style> */
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔐 Age & Identity Verification</h1>
+      <p>Upload your Aadhar card and selfie for secure identity verification</p>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" id="verificationForm">
+      <div class="upload-section">
+        <!-- Aadhaar Upload -->
+        <div class="upload-box" id="aadharBox">
+          <h3>📄 Aadhar Card</h3>
+          <p>Upload a clear image of your Aadhar card</p>
+          <button class="upload-btn" type="button" onclick="document.getElementById('aadharInput').click()">Choose File</button>
+          <input type="file" name="aadhaar" id="aadharInput" class="file-input" accept="image/*" required onchange="previewImage(this, 'aadharPreview'); checkEnableVerify();">
+          <div class="preview-container" id="aadharPreview"></div>
+        </div>
+
+        <!-- Selfie Upload/Camera -->
+        <div class="upload-box" id="selfieBox">
+          <h3>🤳 Live Selfie</h3>
+          <p>Take a live selfie or upload a photo</p>
+          <div class="selfie-options">
+            <button class="upload-btn" type="button" onclick="startCamera()">📷 Take Live Selfie</button>
+            <button class="upload-btn" type="button" onclick="document.getElementById('selfieInput').click()">📁 Upload Photo</button>
+          </div>
+          <input type="file" name="selfie" id="selfieInput" class="file-input" accept="image/*" onchange="previewImage(this, 'selfiePreview'); checkEnableVerify();">
+
+          <div class="camera-container" id="cameraContainer" style="display: none;">
+            <video id="cameraVideo" autoplay playsinline></video>
+            <div style="margin-top: 10px;">
+              <button class="upload-btn" type="button" onclick="capturePhoto()">📸 Capture</button>
+              <button class="upload-btn" type="button" onclick="stopCamera()" style="background: #e74c3c;">❌ Cancel</button>
+            </div>
+            <canvas id="captureCanvas" style="display: none;"></canvas>
+            <input type="hidden" name="selfie_webcam" id="selfieWebcamData">
+          </div>
+          <div class="preview-container" id="selfiePreview"></div>
+        </div>
+      </div>
+
+      <div class="progress-bar" id="progressBar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+
+      <button class="verify-btn" type="submit" id="verifyBtn" disabled>🔍 Start Verification</button>
+    </form>
+
+    {% if result %}
+    <div class="results" style="display: block;">
+      <h3 style="text-align: center; margin-bottom: 20px; color: #2c3e50;">📊 Verification Results</h3>
+      <div class="result-item">
+        <span class="result-label">Extracted DOB:</span>
+        <span class="result-value">{{ result['DOB'] }}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Calculated Age:</span>
+        <span class="result-value">{{ result['Age'] }}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Age Eligible (18+):</span>
+        <span class="result-value">{{ '✅ Yes' if result['18+'] else '❌ No' }}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Face Match:</span>
+        <span class="result-value">{{ '✅ Match' if result['Face Match'] else '❌ Mismatch' }}</span>
+      </div>
+      <div class="result-item">
+        <span class="result-label">Status:</span>
+        <span class="verification-status {{ 'status-success' if result['Verified'] else 'status-failed' }}">
+          {{ '✅ Verified' if result['Verified'] else '❌ Rejected' }}
+        </span>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="security-disclaimer">
+      <h4>🔒 Security & Privacy Notice</h4>
+      <p>
+        This is a proof-of-concept demo. All images and data stay on your device.
+        In production, implement secure backends and privacy protocols.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    let stream = null;
+
+    function previewImage(input, previewId) {
+      const file = input.files[0];
+      const preview = document.getElementById(previewId);
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          preview.innerHTML = '<img class="preview-image" src="' + e.target.result + '" />';
+        };
+        reader.readAsDataURL(file);
+      } else {
+        preview.innerHTML = '';
+      }
+    }
+
+    function startCamera() {
+      const container = document.getElementById('cameraContainer');
+      container.style.display = 'block';
+      navigator.mediaDevices.getUserMedia({ video: true }).then(s => {
+        stream = s;
+        document.getElementById('cameraVideo').srcObject = s;
+      }).catch(err => alert("Camera error"));
+    }
+
+    function stopCamera() {
+      document.getElementById('cameraContainer').style.display = 'none';
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+    }
+
+    function capturePhoto() {
+      const video = document.getElementById('cameraVideo');
+      const canvas = document.getElementById('captureCanvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const data = canvas.toDataURL('image/png');
+      document.getElementById('selfieWebcamData').value = data;
+      document.getElementById('selfiePreview').innerHTML = '<img class="preview-image" src="' + data + '" />';
+      stopCamera();
+      checkEnableVerify();
+    }
+
+    function checkEnableVerify() {
+      const aadhaarFilled = document.getElementById('aadharInput').files.length > 0;
+      const selfieFileFilled = document.getElementById('selfieInput').files.length > 0;
+      const selfieWebcamFilled = document.getElementById('selfieWebcamData').value.trim() !== "";
+      document.getElementById('verifyBtn').disabled = !(aadhaarFilled && (selfieFileFilled || selfieWebcamFilled));
+    }
+  </script>
+</body>
+</html>

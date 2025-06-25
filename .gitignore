@@ -1,0 +1,12 @@
+# Ignore virtual environments and build folders
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.DS_Store
+*.egg-info/
+dlib/build/
+dlib_env/
+env/
+venv/
